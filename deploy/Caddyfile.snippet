@@ -1,0 +1,34 @@
+# Pumpscan Caddy site block — matches the musicailab.com pattern:
+# Cloudflare Tunnel terminates TLS, proxies to a localhost port that Caddy listens on.
+#
+# Install:
+#   1. Append this block to /etc/caddy/Caddyfile (after the existing musicailab :8080 block)
+#   2. sudo systemctl reload caddy
+#   3. In Cloudflare Zero Trust → Tunnels → your tunnel → Public Hostname:
+#        add  pumpscan.musicailab.com  →  http://localhost:8081
+
+:8081 {
+    encode zstd gzip
+
+    reverse_proxy 127.0.0.1:3030 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    header {
+        X-Content-Type-Options nosniff
+        Referrer-Policy strict-origin-when-cross-origin
+        Permissions-Policy "geolocation=(), microphone=(), camera=()"
+        -Server
+    }
+
+    log {
+        output file /var/log/caddy/pumpscan.log {
+            roll_size 10mb
+            roll_keep 3
+        }
+        format console
+    }
+}

@@ -1,0 +1,21 @@
+[Unit]
+Description=Pumpscan Next.js server
+After=network.target
+
+[Service]
+Type=simple
+User=yojinbot
+WorkingDirectory=/home/yojinbot/pumpscan
+Environment=NODE_ENV=production
+Environment=PORT=3030
+Environment=HOSTNAME=127.0.0.1
+EnvironmentFile=/home/yojinbot/pumpscan/.env.local
+ExecStart=/usr/bin/node server.js
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=pumpscan
+
+[Install]
+WantedBy=multi-user.target
