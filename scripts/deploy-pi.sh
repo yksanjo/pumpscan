@@ -23,9 +23,13 @@ if [[ -d public ]]; then
     cp -R public "$STAGE/public"
 fi
 
-if [[ ! -f .env.local ]]; then
-    echo "WARN: No .env.local found locally. HELIUS_API_KEY must already be on Pi."
-fi
+echo ">> Building alert scanner bundle..."
+npx --yes esbuild scripts/scanner-runner.ts \
+    --bundle \
+    --platform=node \
+    --format=esm \
+    --target=node20 \
+    --outfile="$STAGE/scanner-runner.mjs" >/dev/null
 
 echo ">> Ensuring remote dir exists..."
 ssh "$HOST" "mkdir -p '$REMOTE_DIR'"
@@ -33,24 +37,36 @@ ssh "$HOST" "mkdir -p '$REMOTE_DIR'"
 echo ">> Rsync to $HOST:$REMOTE_DIR ..."
 rsync -az --delete \
     --exclude '.env.local' \
+    --exclude 'data/' \
     "$STAGE/" "$HOST:$REMOTE_DIR/"
 
-if [[ -f .env.local ]]; then
-    echo ">> Syncing .env.local..."
+if [[ "${SYNC_ENV:-0}" == "1" ]]; then
+    if [[ ! -f .env.local ]]; then
+        echo "ERROR: SYNC_ENV=1 was set but .env.local does not exist locally."
+        exit 1
+    fi
+    echo ">> Backing up and syncing .env.local..."
+    ssh "$HOST" "if [[ -f '$REMOTE_DIR/.env.local' ]]; then cp '$REMOTE_DIR/.env.local' '$REMOTE_DIR/.env.local.bak.\$(date +%Y%m%d%H%M%S)'; fi"
     rsync -az .env.local "$HOST:$REMOTE_DIR/.env.local"
+else
+    echo ">> Preserving remote .env.local (set SYNC_ENV=1 to overwrite from local)"
 fi
 
 echo ">> Installing systemd unit..."
 scp -q deploy/pumpscan.service "$HOST:/tmp/pumpscan.service"
-ssh "$HOST" "sudo mv /tmp/pumpscan.service /etc/systemd/system/pumpscan.service && sudo systemctl daemon-reload && sudo systemctl enable pumpscan >/dev/null 2>&1"
+scp -q deploy/pumpscan-scanner.service "$HOST:/tmp/pumpscan-scanner.service"
+ssh "$HOST" "sudo mv /tmp/pumpscan.service /etc/systemd/system/pumpscan.service && sudo mv /tmp/pumpscan-scanner.service /etc/systemd/system/pumpscan-scanner.service && sudo systemctl daemon-reload && sudo systemctl enable pumpscan pumpscan-scanner >/dev/null 2>&1"
 
-echo ">> Restarting service..."
+echo ">> Restarting services..."
 ssh "$HOST" "sudo systemctl restart pumpscan && sleep 3 && sudo systemctl is-active pumpscan"
+ssh "$HOST" "sudo systemctl restart pumpscan-scanner && sleep 3 && sudo systemctl is-active pumpscan-scanner"
 
 echo ">> Health check via loopback on Pi..."
 ssh "$HOST" "curl -sf -o /dev/null -w 'HTTP %{http_code}\n' http://127.0.0.1:3030/ || (echo 'health check failed'; sudo journalctl -u pumpscan -n 30 --no-pager; exit 1)"
 
 echo ""
 echo "OK - deploy complete."
-echo "  Service: sudo systemctl status pumpscan"
-echo "  Logs:    sudo journalctl -u pumpscan -f"
+echo "  Web service:     sudo systemctl status pumpscan"
+echo "  Scanner service: sudo systemctl status pumpscan-scanner"
+echo "  Web logs:        sudo journalctl -u pumpscan -f"
+echo "  Scanner logs:    sudo journalctl -u pumpscan-scanner -f"

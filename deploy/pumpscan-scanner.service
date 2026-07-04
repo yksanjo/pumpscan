@@ -1,0 +1,19 @@
+[Unit]
+Description=Pumpscan alert scanner
+After=network.target
+
+[Service]
+Type=simple
+User=yojinbot
+WorkingDirectory=/home/yojinbot/pumpscan
+Environment=NODE_ENV=production
+EnvironmentFile=/home/yojinbot/pumpscan/.env.local
+ExecStart=/usr/bin/node scanner-runner.mjs
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=pumpscan-scanner
+
+[Install]
+WantedBy=multi-user.target

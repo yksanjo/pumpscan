@@ -22,6 +22,9 @@ import { batchScan, formatBatchSummary } from "../src/lib/batch-scanner";
 import { compareTokens, formatComparisonTable } from "../src/lib/token-comparator";
 import { analyzeDevWallet, formatDevProfile } from "../src/lib/dev-wallet-tracker";
 import { extractMint } from "../src/lib/parse-input";
+import { findCollectors, formatCollectorScan } from "../src/lib/collector-finder";
+import { planAirdropForScan, planAirdrop, formatAirdropPlan } from "../src/lib/airdrop-planner";
+import { readFileSync } from "node:fs";
 
 const [command, ...args] = process.argv.slice(2);
 
@@ -42,9 +45,107 @@ async function main() {
     case "watch":
       await cmdWatch(args[0], parseInt(args[1] || "30", 10));
       break;
+    case "collectors":
+      await cmdCollectors(args);
+      break;
+    case "airdrop":
+      await cmdAirdrop(args);
+      break;
     default:
       showHelp();
   }
+}
+
+async function cmdCollectors(rawArgs: string[]) {
+  const { flags, positional } = parseFlags(rawArgs);
+  if (positional.length === 0) {
+    console.error("❌ Usage: pumpscan collectors <mint1> <mint2> ... [--top=25] [--recency=30] [--airdrop=AMOUNT] [--token=SOAG_MINT]");
+    process.exit(1);
+  }
+
+  const mints = positional.map((m) => extractMint(m) ?? m).filter(Boolean) as string[];
+  const top = parseInt(flags.top ?? "25", 10);
+  const recency = parseInt(flags.recency ?? "30", 10);
+
+  console.log(`🔍 Scanning ${mints.length} graduates for real collectors...\n`);
+  const scan = await findCollectors(mints, {
+    holdersPerToken: top,
+    recencyDays: recency,
+  });
+  console.log(formatCollectorScan(scan));
+
+  if (flags.airdrop && flags.token) {
+    const amount = Number(flags.airdrop);
+    const topN = parseInt(flags["airdrop-top"] ?? "10", 10);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      console.error(`\n❌ Invalid --airdrop amount: ${flags.airdrop}`);
+      process.exit(1);
+    }
+    const plan = planAirdropForScan(scan, {
+      mint: flags.token,
+      topN,
+      amountPerWallet: amount,
+    });
+    console.log("");
+    console.log(formatAirdropPlan(plan));
+    console.log("");
+    console.log("  CSV:");
+    console.log("  ----");
+    process.stdout.write(plan.csv);
+  }
+}
+
+async function cmdAirdrop(rawArgs: string[]) {
+  const { flags, positional } = parseFlags(rawArgs);
+  const [csvPath, mintArg, amountArg] = positional;
+  if (!csvPath || !mintArg || !amountArg) {
+    console.error("❌ Usage: pumpscan airdrop <wallets.csv> <mint> <amount-per-wallet> [--execute]");
+    console.error("   CSV format: one wallet per line, or `wallet,amount` (amount overrides default).");
+    process.exit(1);
+  }
+  const amount = Number(amountArg);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    console.error(`❌ Invalid amount: ${amountArg}`);
+    process.exit(1);
+  }
+
+  const raw = readFileSync(csvPath, "utf8");
+  const recipients = raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith("#") && !line.toLowerCase().startsWith("wallet,"))
+    .map((line) => {
+      const [wallet, amountStr] = line.split(",").map((s) => s.trim());
+      const rowAmount = amountStr ? Number(amountStr) : undefined;
+      return { wallet, amount: rowAmount && Number.isFinite(rowAmount) ? rowAmount : undefined };
+    });
+
+  const plan = planAirdrop({
+    mint: mintArg,
+    recipients,
+    defaultAmount: amount,
+    dryRun: flags.execute === undefined,
+  });
+  console.log(formatAirdropPlan(plan));
+}
+
+function parseFlags(args: string[]): { flags: Record<string, string>; positional: string[] } {
+  const flags: Record<string, string> = {};
+  const positional: string[] = [];
+  for (const arg of args) {
+    if (arg.startsWith("--")) {
+      const body = arg.slice(2);
+      const eq = body.indexOf("=");
+      if (eq >= 0) {
+        flags[body.slice(0, eq)] = body.slice(eq + 1);
+      } else {
+        flags[body] = "true";
+      }
+    } else {
+      positional.push(arg);
+    }
+  }
+  return { flags, positional };
 }
 
 async function cmdAnalyze(input: string | undefined) {
@@ -202,6 +303,8 @@ Usage:
   pumpscan compare <a> <b> [c...]    Side-by-side comparison
   pumpscan dev <wallet>              Analyze a dev wallet's tokens
   pumpscan watch <mint> [sec]        Watch a token for changes
+  pumpscan collectors <mints...>     Find real collectors across graduates
+  pumpscan airdrop <csv> <mint> <n>  Dry-run an airdrop plan from a wallet CSV
 
 Examples:
   pumpscan analyze 6p6xgHyF7AeE6TZkSmFsko444wqoP15icUSqi2jfGiPN
@@ -209,6 +312,9 @@ Examples:
   pumpscan compare mint1 mint2
   pumpscan dev GvyLS9WFxUBzoiVPKTJAR2bGLocnoEVWRYh4D8i5z7m1
   pumpscan watch 6p6xgHyF7AeE6TZkSmFsko444wqoP15icUSqi2jfGiPN 60
+  pumpscan collectors mint1 mint2 mint3 --top=25 --recency=30
+  pumpscan collectors mint1 mint2 --token=ADue87cP...pump --airdrop=1000 --airdrop-top=10
+  pumpscan airdrop ./recipients.csv ADue87cP...pump 1000
 `);
 }
 

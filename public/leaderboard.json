@@ -1,0 +1,127 @@
+{
+  "generatedAt": 1778879520385,
+  "mintsScanned": [
+    "Hrpq2D2YHzaYMUNNAt37TnHyQKRv5CSjvGWWRViHpump",
+    "ADue87cPcDhsyGq2hrDsukp7j8AFTSnaYHSanDATpump",
+    "7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr",
+    "2qEHjDLDLbuBgRYvsxhc5D6uDWAivNFZGan56P1tpump",
+    "ED5nyyWEzpPPiWimP8vYm7sD7TD3LAt3Q3gRTWHzPJBY",
+    "ukHH6c7mMyiWCf1b9pnWe25TSpkDDt3H5pQZgZ74J82",
+    "J3NKxxXZcnNiMjKw9hYb2K4LUxgwB6t1FtPtQVsv3KFr",
+    "CzLSujWBLFsSjncfkh59rUFqvafWcY5tzedWJSuypump",
+    "Df6yfrKC8kZE3KNkrHERKzAetSxbrWeniQfyJY4Jpump",
+    "GJAFwWjJ3vnTsrQVabjBVK2TYB1YtRCQXRDfDgUnpump",
+    "A8C3xuqscfmyLrte3VmTqrAq8kgMASius9AFNANwpump"
+  ],
+  "totals": {
+    "holdersInspected": 1100,
+    "walletsClassified": 1092,
+    "realCollectors": 6
+  },
+  "tierCounts": {
+    "ELITE": 0,
+    "HIGH": 0,
+    "MID": 0,
+    "LOW": 4,
+    "MIN": 2
+  },
+  "entries": [
+    {
+      "rank": 1,
+      "wallet": "2UQ8mBHxepAvibaDeSZQhvprbXTyuc8tgEiamttuiVuG",
+      "tier": "LOW",
+      "pumpFunBags": 9,
+      "totalSwaps": 48,
+      "firstSwapDaysAgo": 104,
+      "lastSwapDaysAgo": 1,
+      "appearances": [
+        {
+          "mint": "Hrpq2D2YHzaYMUNNAt37TnHyQKRv5CSjvGWWRViHpump",
+          "pctSupply": 3.03
+        }
+      ]
+    },
+    {
+      "rank": 2,
+      "wallet": "AYsAj7wCCM8VAe4ud9g2B8Weot2b5veraChFpN4YxTRQ",
+      "tier": "LOW",
+      "pumpFunBags": 6,
+      "totalSwaps": 100,
+      "firstSwapDaysAgo": 479,
+      "lastSwapDaysAgo": 66,
+      "appearances": [
+        {
+          "mint": "Df6yfrKC8kZE3KNkrHERKzAetSxbrWeniQfyJY4Jpump",
+          "pctSupply": 0
+        }
+      ]
+    },
+    {
+      "rank": 3,
+      "wallet": "Hnqz5BAQhaYMyXTrQXTnYKcv8dyXULjjjkkSse5V4dpZ",
+      "tier": "LOW",
+      "pumpFunBags": 5,
+      "totalSwaps": 38,
+      "firstSwapDaysAgo": 104,
+      "lastSwapDaysAgo": 1,
+      "appearances": [
+        {
+          "mint": "Hrpq2D2YHzaYMUNNAt37TnHyQKRv5CSjvGWWRViHpump",
+          "pctSupply": 5.17
+        }
+      ]
+    },
+    {
+      "rank": 4,
+      "wallet": "EbHZTCZDyE11pComkk8W5VAtvbqXxoiayFx9B8FB9ucQ",
+      "tier": "LOW",
+      "pumpFunBags": 3,
+      "totalSwaps": 100,
+      "firstSwapDaysAgo": 316,
+      "lastSwapDaysAgo": 143,
+      "appearances": [
+        {
+          "mint": "Df6yfrKC8kZE3KNkrHERKzAetSxbrWeniQfyJY4Jpump",
+          "pctSupply": 0
+        }
+      ]
+    },
+    {
+      "rank": 5,
+      "wallet": "B4ooMMjF3NVtii6UeTE6JmLiSp3bxZGGRMJoChJRq7HK",
+      "tier": "MIN",
+      "pumpFunBags": 2,
+      "totalSwaps": 159,
+      "firstSwapDaysAgo": 196,
+      "lastSwapDaysAgo": 11,
+      "appearances": [
+        {
+          "mint": "Hrpq2D2YHzaYMUNNAt37TnHyQKRv5CSjvGWWRViHpump",
+          "pctSupply": 2.6
+        }
+      ]
+    },
+    {
+      "rank": 6,
+      "wallet": "YmrZEVCFjvKXyGDk9A7XoeTqC9EJCpymzDTZEooWgZv",
+      "tier": "MIN",
+      "pumpFunBags": 1,
+      "totalSwaps": 34,
+      "firstSwapDaysAgo": 316,
+      "lastSwapDaysAgo": 42,
+      "appearances": [
+        {
+          "mint": "Hrpq2D2YHzaYMUNNAt37TnHyQKRv5CSjvGWWRViHpump",
+          "pctSupply": 2.64
+        }
+      ]
+    }
+  ],
+  "methodology": {
+    "topHoldersPerToken": 100,
+    "minHistoryDays": 60,
+    "minTotalSwaps": 20,
+    "minSwaps30d": 3,
+    "repoUrl": "https://github.com/yksanjo/pumpscan"
+  }
+}

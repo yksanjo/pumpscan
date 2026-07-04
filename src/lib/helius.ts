@@ -3,6 +3,9 @@ import type {
   LaunchTx,
   FunderEdge,
   TokenVitals,
+  TopHolder,
+  WalletSwapHistory,
+  WalletSwapSample,
 } from "./types";
 import type { TokenFixture } from "./fixtures";
 
@@ -18,6 +21,10 @@ function rpcUrl(): string {
   const key = process.env.HELIUS_API_KEY;
   if (!key) throw new Error("HELIUS_API_KEY not set");
   return `https://mainnet.helius-rpc.com/?api-key=${key}`;
+}
+
+function publicRpcUrl(): string {
+  return process.env.SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
 }
 
 function enhancedUrl(path: string, params: Record<string, string | number> = {}): string {
@@ -37,6 +44,19 @@ async function rpc<T>(method: string, params: unknown): Promise<T> {
   const json = (await res.json()) as { result?: T; error?: { message: string } };
   if (json.error) throw new Error(`Helius RPC ${method} error: ${json.error.message}`);
   if (json.result === undefined) throw new Error(`Helius RPC ${method} returned no result`);
+  return json.result;
+}
+
+async function rpcAt<T>(url: string, method: string, params: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: "pumpscan", method, params }),
+  });
+  if (!res.ok) throw new Error(`RPC ${method} failed: ${res.status}`);
+  const json = (await res.json()) as { result?: T; error?: { message: string } };
+  if (json.error) throw new Error(`RPC ${method} error: ${json.error.message}`);
+  if (json.result === undefined) throw new Error(`RPC ${method} returned no result`);
   return json.result;
 }
 
@@ -62,6 +82,24 @@ interface TokenAccount {
   amount: number | string;
 }
 
+interface ParsedTokenAccount {
+  account: {
+    data: {
+      parsed?: {
+        info?: {
+          mint?: string;
+          tokenAmount?: {
+            amount?: string;
+            decimals?: number;
+            uiAmount?: number | null;
+            uiAmountString?: string;
+          };
+        };
+      };
+    };
+  };
+}
+
 async function fetchAllTokenAccounts(mint: string, maxAccounts = 5000): Promise<TokenAccount[]> {
   const accounts: TokenAccount[] = [];
   let cursor: string | undefined;
@@ -76,6 +114,45 @@ async function fetchAllTokenAccounts(mint: string, maxAccounts = 5000): Promise<
     cursor = result.cursor;
   }
   return accounts;
+}
+
+export async function fetchWalletTokenBalance(owner: string, mint: string): Promise<number> {
+  const params = [
+    owner,
+    { mint },
+    { encoding: "jsonParsed", commitment: "confirmed" },
+  ];
+
+  const urls = new Set<string>();
+  if (process.env.HELIUS_API_KEY) urls.add(rpcUrl());
+  urls.add(publicRpcUrl());
+
+  let result: { value: ParsedTokenAccount[] } | null = null;
+  let lastError: unknown;
+  for (const url of urls) {
+    try {
+      result = await rpcAt<{ value: ParsedTokenAccount[] }>(
+        url,
+        "getTokenAccountsByOwner",
+        params
+      );
+      break;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  if (!result) {
+    const message = lastError instanceof Error ? lastError.message : "token balance lookup failed";
+    throw new Error(message);
+  }
+
+  return result.value.reduce((total, tokenAccount) => {
+    const tokenAmount = tokenAccount.account.data.parsed?.info?.tokenAmount;
+    const uiAmount = tokenAmount?.uiAmountString ?? tokenAmount?.uiAmount;
+    const amount = Number(uiAmount ?? 0);
+    return Number.isFinite(amount) ? total + amount : total;
+  }, 0);
 }
 
 interface EnhancedTx {
@@ -248,6 +325,130 @@ function inferDevWallet(txs: EnhancedTx[], mint: string): string | null {
     if (isMintEvent && tx.feePayer) return tx.feePayer;
   }
   return sorted[0]?.feePayer ?? null;
+}
+
+/**
+ * Fetch the top-N holders of a mint, ranked by token balance, with
+ * percent of supply attached. Used by the collector-finder.
+ *
+ * Cheaper than buildFixtureFromHelius — no early-buy / funder / launch-tx work.
+ */
+export async function fetchTopHolders(mint: string, n = 25): Promise<TopHolder[]> {
+  const [asset, tokenAccounts] = await Promise.all([
+    fetchAsset(mint),
+    fetchAllTokenAccounts(mint, 2000),
+  ]);
+
+  const decimals = asset.token_info?.decimals ?? 6;
+  const rawSupply = Number(asset.token_info?.supply ?? 0);
+  const supply = rawSupply / 10 ** decimals;
+
+  const ownerTotals = new Map<string, number>();
+  for (const acc of tokenAccounts) {
+    const amount = Number(acc.amount) / 10 ** decimals;
+    if (!isFinite(amount) || amount <= 0) continue;
+    ownerTotals.set(acc.owner, (ownerTotals.get(acc.owner) ?? 0) + amount);
+  }
+
+  return Array.from(ownerTotals.entries())
+    .map(([address, amount]): TopHolder => {
+      const lower = address.toLowerCase();
+      const isLp = KNOWN_LP_PROGRAMS.has(address) || lower.includes("pool") || lower.includes("whirl");
+      const isBurn = address === "1nc1nerator11111111111111111111111111111111";
+      return {
+        address,
+        amount,
+        pctSupply: supply > 0 ? Math.round((amount / supply) * 10000) / 100 : 0,
+        isLp,
+        isBurn,
+      };
+    })
+    .filter((h) => !h.isLp && !h.isBurn)
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, n);
+}
+
+/**
+ * Pull a wallet's swap history via Helius enhanced /transactions API,
+ * filtered to type=SWAP. Returns enough metadata for the collector
+ * classifier: counts, first-swap age, last activity, and the per-swap
+ * timestamps so callers can compute their own windows.
+ *
+ * Stops early once it has either enough samples or has passed `lookbackDays`.
+ */
+export async function fetchWalletSwapHistory(
+  wallet: string,
+  opts: { maxSwaps?: number; lookbackDays?: number } = {}
+): Promise<WalletSwapHistory> {
+  const maxSwaps = opts.maxSwaps ?? 200;
+  const lookbackSec = (opts.lookbackDays ?? 365) * 86_400;
+  const cutoffTs = Math.floor(Date.now() / 1000) - lookbackSec;
+
+  const samples: WalletSwapSample[] = [];
+  let before: string | undefined;
+  let pumpFunBags = 0;
+  const seenMints = new Set<string>();
+
+  for (let page = 0; page < 10 && samples.length < maxSwaps; page++) {
+    let batch: EnhancedTx[];
+    try {
+      // No `type` filter — Helius's parsed SWAP type misses direct AMM hops
+      // and Jupiter aggregator routes. We want all on-chain activity as the
+      // collector signal, matching the original methodology.
+      batch = await fetchAddressTxs(wallet, { limit: 100, before });
+    } catch {
+      break;
+    }
+    if (batch.length === 0) break;
+
+    let crossedCutoff = false;
+    for (const tx of batch) {
+      if (tx.timestamp < cutoffTs) {
+        crossedCutoff = true;
+        // Still record it so firstSwapTs is accurate, but stop after this page.
+      }
+      const mints = (tx.tokenTransfers ?? []).map((t) => t.mint);
+      for (const m of mints) {
+        if (m && m.endsWith("pump")) {
+          if (!seenMints.has(m)) {
+            seenMints.add(m);
+            pumpFunBags++;
+          }
+        }
+      }
+      samples.push({
+        signature: tx.signature,
+        timestamp: tx.timestamp,
+        involvedMints: mints,
+      });
+      if (samples.length >= maxSwaps) break;
+    }
+
+    if (crossedCutoff) break;
+    before = batch[batch.length - 1].signature;
+    if (batch.length < 100) break;
+  }
+
+  if (samples.length === 0) {
+    return {
+      wallet,
+      totalSwaps: 0,
+      firstSwapTs: null,
+      lastSwapTs: null,
+      pumpFunBags: 0,
+      samples: [],
+    };
+  }
+
+  samples.sort((a, b) => a.timestamp - b.timestamp);
+  return {
+    wallet,
+    totalSwaps: samples.length,
+    firstSwapTs: samples[0].timestamp,
+    lastSwapTs: samples[samples.length - 1].timestamp,
+    pumpFunBags,
+    samples,
+  };
 }
 
 async function fetchFunderEdges(wallets: string[], beforeTime: number): Promise<FunderEdge[]> {

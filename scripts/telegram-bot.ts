@@ -13,9 +13,11 @@
  *   /batch <a> <b> <c>...   — Batch scan tokens
  *   /watch <mint>           — Start watching a token
  *   /alerts                 — Show recent alerts
+ *   /id                     — Show this chat's Telegram ID for web alert setup
  *   /help                   — Show help
  */
 
+import "./load-env";
 import { analyze } from "../src/lib/analyze";
 import { batchScan } from "../src/lib/batch-scanner";
 import { compareTokens } from "../src/lib/token-comparator";
@@ -84,12 +86,18 @@ async function handleCommand(chatId: number, text: string) {
 
 Analyze pump.fun tokens directly from Telegram.
 
+*Breakout Radar alerts:*
+1. Send \`/id\` here.
+2. Paste the returned chat ID into the Telegram alerts box in the web app.
+3. Connect your SOAG wallet and sign. The signature cannot move funds.
+
 *Commands:*
 \`/analyze <mint-or-url>\` — Analyze a token
 \`/compare <a> <b>\` — Compare two tokens
 \`/batch <a> <b> <c>...\` — Batch scan tokens
 \`/watch <mint>\` — Start watching a token
 \`/alerts\` — Show recent alerts
+\`/id\` — Show this chat's Telegram ID
 \`/help\` — Show this message
 
 *Examples:*
@@ -97,6 +105,22 @@ Analyze pump.fun tokens directly from Telegram.
 \`/analyze https://pump.fun/coin/...\`
       `.trim());
       break;
+
+    case "/id": {
+      await sendMessage(
+        chatId,
+        [
+          "Your Telegram chat ID:",
+          `\`${chatId}\``,
+          "",
+          "Next:",
+          "1. Go back to the Breakout Radar web app.",
+          "2. Paste this into the Telegram alerts box.",
+          "3. Connect your SOAG wallet and sign to enable alerts.",
+        ].join("\n")
+      );
+      break;
+    }
 
     case "/analyze": {
       const input = args.join(" ");

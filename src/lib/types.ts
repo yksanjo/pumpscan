@@ -81,6 +81,86 @@ export interface GraduationPrediction {
   verdict: "likely" | "possible" | "unlikely";
 }
 
+export interface TopHolder {
+  address: string;
+  amount: number;
+  pctSupply: number;
+  isLp?: boolean;
+  isBurn?: boolean;
+}
+
+export interface WalletSwapSample {
+  signature: string;
+  timestamp: number;
+  involvedMints: string[];
+}
+
+export interface WalletSwapHistory {
+  wallet: string;
+  totalSwaps: number;
+  firstSwapTs: number | null;
+  lastSwapTs: number | null;
+  pumpFunBags: number;
+  samples: WalletSwapSample[];
+}
+
+export type ActivityTier = "dormant" | "quiet" | "lightly_active" | "active";
+
+export interface WalletClassification {
+  wallet: string;
+  tier: ActivityTier;
+  isRealCollector: boolean;
+  totalSwaps: number;
+  swaps30d: number;
+  firstSwapDaysAgo: number | null;
+  lastSwapDaysAgo: number | null;
+  pumpFunBags: number;
+  reason: string;
+}
+
+export interface CollectorMintAppearance {
+  mint: string;
+  pctSupply: number;
+  amount: number;
+}
+
+export interface CollectorRecord extends WalletClassification {
+  /** Which scanned graduates this wallet appeared in as a top holder. */
+  appearances: CollectorMintAppearance[];
+}
+
+export interface CollectorScan {
+  generatedAt: number;
+  mintsScanned: string[];
+  holdersPerToken: number;
+  recencyDays: number;
+  totals: {
+    holdersInspected: number;
+    walletsClassified: number;
+    realCollectors: number;
+  };
+  tierCounts: Record<ActivityTier, number>;
+  collectors: CollectorRecord[];
+  errors: Array<{ stage: "holders" | "swaps"; mint?: string; wallet?: string; error: string }>;
+}
+
+export interface AirdropRecipient {
+  wallet: string;
+  amount: number;
+}
+
+export interface AirdropPlan {
+  mint: string;
+  totalRecipients: number;
+  totalAmount: number;
+  dryRun: boolean;
+  recipients: AirdropRecipient[];
+  csv: string;
+  /** Set only when execute mode is wired up; null in plan-only mode. */
+  signatures: string[] | null;
+  notes: string[];
+}
+
 export interface AnalysisResult {
   mint: string;
   generatedAt: number;

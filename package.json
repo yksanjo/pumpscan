@@ -1,7 +1,7 @@
 {
   "name": "pumpscan",
   "version": "0.1.0",
-  "description": "🔍 pump.fun token holder analysis — bundles, concentration, dev wallet, holders. Built by @yksanjo — ex-Atlantic Records, ex-Warner Music.",
+  "description": "🔍 pump.fun token holder analysis — bundles, concentration, dev wallet, real-collector finder, airdrop planning. Built by @yksanjo.",
   "private": true,
   "author": {
     "name": "Yoshi Kondo",
@@ -15,10 +15,12 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.2",
+    "bs58": "^6.0.0",
     "lucide-react": "^1.14.0",
     "next": "16.2.6",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "tweetnacl": "^1.0.3",
     "zod": "^4.4.3"
   },
   "devDependencies": {
